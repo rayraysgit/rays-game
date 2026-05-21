@@ -3,36 +3,816 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simple Page</title>
+  <title>Rays: Deep Cockpit</title>
   <style>
+    * { box-sizing: border-box; }
+
+    html,
     body {
+      width: 100%;
+      height: 100%;
       margin: 0;
+      overflow: hidden;
+      background: #01030a;
+      color: #eef5ff;
       font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #01030a;
+    }
+
+    .hud {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      display: grid;
+      gap: 8px;
+      min-width: 220px;
+      padding: 14px 16px;
+      border: 1px solid rgba(128, 218, 255, 0.38);
+      border-radius: 8px;
+      background: rgba(3, 8, 18, 0.72);
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
+      font-size: 14px;
+      backdrop-filter: blur(8px);
+      user-select: none;
+    }
+
+    .hud strong {
+      color: #84dcff;
+      font-size: 16px;
+    }
+
+    .health {
+      display: grid;
+      gap: 5px;
+    }
+
+    .health-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .bar {
+      width: 100%;
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+    }
+
+    .bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #ff4f5f, #ffe36e, #5df0a5);
+      box-shadow: 0 0 18px rgba(93, 240, 165, 0.42);
+      transform-origin: left center;
+      transition: transform 120ms ease;
+    }
+
+    .minimap-wrap {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 180px;
+      height: 180px;
+      padding: 8px;
+      border: 1px solid rgba(128, 218, 255, 0.38);
+      border-radius: 8px;
+      background: rgba(3, 8, 18, 0.72);
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(8px);
+    }
+
+    #minimap {
+      width: 100%;
+      height: 100%;
+      border-radius: 4px;
+      background: rgba(1, 4, 10, 0.95);
+    }
+
+    .message {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(500px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 231, 128, 0.28);
+      border-radius: 8px;
+      background: rgba(3, 8, 18, 0.72);
+      color: #f4f7fb;
+      font-size: 14px;
+      line-height: 1.45;
+      backdrop-filter: blur(8px);
+      user-select: none;
+    }
+
+    .pause-button {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      min-width: 96px;
+      height: 42px;
+      border: 1px solid rgba(128, 218, 255, 0.42);
+      border-radius: 8px;
+      background: rgba(3, 8, 18, 0.74);
+      color: #eef5ff;
+      font: 700 14px Arial, sans-serif;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+
+    .pause-button:hover,
+    .replay-button:hover {
+      background: rgba(19, 37, 58, 0.88);
+    }
+
+    .center {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .panel {
+      width: min(480px, calc(100vw - 36px));
+      padding: 22px 24px;
+      border: 1px solid rgba(128, 218, 255, 0.42);
+      border-radius: 8px;
+      background: rgba(3, 8, 18, 0.86);
+      box-shadow: 0 22px 56px rgba(0, 0, 0, 0.56);
+      text-align: center;
+      backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .panel h1 {
+      margin: 0 0 8px;
+      color: #84dcff;
+      font-size: 28px;
+    }
+
+    .panel p {
+      margin: 0 0 16px;
+      color: #d8e7f5;
       line-height: 1.6;
-      color: #222;
-      background: #f7f7f7;
+      font-size: 15px;
     }
 
-    main {
-      max-width: 720px;
-      margin: 80px auto;
-      padding: 0 24px;
+    .replay-button {
+      display: none;
+      min-width: 128px;
+      height: 42px;
+      border: 1px solid rgba(128, 218, 255, 0.5);
+      border-radius: 8px;
+      background: rgba(5, 19, 35, 0.86);
+      color: #eef5ff;
+      font: 700 14px Arial, sans-serif;
+      cursor: pointer;
     }
 
-    h1 {
-      margin-bottom: 16px;
-      font-size: 2rem;
-    }
+    @media (max-width: 640px) {
+      .hud {
+        top: 10px;
+        left: 10px;
+        min-width: 168px;
+        padding: 10px 12px;
+        font-size: 12px;
+      }
 
-    p {
-      margin: 0;
+      .minimap-wrap {
+        top: 10px;
+        right: 10px;
+        width: 126px;
+        height: 126px;
+      }
+
+      .message {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        font-size: 12px;
+      }
+
+      .pause-button {
+        left: 10px;
+        bottom: 72px;
+        min-width: 76px;
+        height: 36px;
+        font-size: 12px;
+      }
     }
   </style>
 </head>
 <body>
-  <main>
-    <h1>こんにちは</h1>
-    <p>これはシンプルなHTMLページです。</p>
-  </main>
+  <canvas id="game"></canvas>
+  <div class="hud">
+    <strong>Rays: Deep Cockpit</strong>
+    <div class="health">
+      <div class="health-row">
+        <span>船体</span>
+        <span id="healthText">100%</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="healthFill"></div></div>
+    </div>
+    <span id="score">撃破: 0</span>
+    <span id="missile">ミサイル: Lv.1</span>
+    <span id="speed">速度: 0</span>
+    <span id="barrier">バリア: OFF</span>
+    <span id="sector">宙域: 0, 0</span>
+  </div>
+  <div class="minimap-wrap">
+    <canvas id="minimap" width="164" height="164" aria-label="地図"></canvas>
+  </div>
+  <button class="pause-button" id="pauseButton" type="button">PAUSE</button>
+  <div class="message" id="message">J/Lで旋回、Iで前進、Kで後退、Oでバリア。慣性で機体は流れ続けます。</div>
+  <div class="center" id="overlay">
+    <div class="panel">
+      <h1 id="overlayTitle">Rays: Deep Cockpit</h1>
+      <p id="overlayText">一人称コックピット視点で隕石帯を突破してください。Iキーで推進を開始します。</p>
+      <button class="replay-button" id="replayButton" type="button">REPLAY</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const mapCanvas = document.getElementById('minimap');
+    const mapCtx = mapCanvas.getContext('2d');
+    const healthFillEl = document.getElementById('healthFill');
+    const healthTextEl = document.getElementById('healthText');
+    const scoreEl = document.getElementById('score');
+    const missileEl = document.getElementById('missile');
+    const speedEl = document.getElementById('speed');
+    const barrierEl = document.getElementById('barrier');
+    const sectorEl = document.getElementById('sector');
+    const messageEl = document.getElementById('message');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayText = document.getElementById('overlayText');
+    const replayButton = document.getElementById('replayButton');
+    const pauseButton = document.getElementById('pauseButton');
+
+    const keys = new Set();
+    const worldSize = 12000;
+    const stars = [];
+    const asteroids = [];
+    const bullets = [];
+    const particles = [];
+    const player = {
+      x: worldSize / 2,
+      y: worldSize / 2,
+      z: worldSize / 2,
+      yaw: 0,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      radius: 42,
+      health: 100,
+      maxHealth: 100,
+      cooldown: 0,
+      hitCooldown: 0
+    };
+
+    let width = 0;
+    let height = 0;
+    let running = false;
+    let paused = false;
+    let gameOver = false;
+    let lastTime = 0;
+    let score = 0;
+    let missileLevel = 1;
+    let spawnTimer = 0;
+    let messageTimer = 0;
+
+    function resize() {
+      const ratio = window.devicePixelRatio || 1;
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function forwardVector() {
+      return {
+        x: Math.sin(player.yaw),
+        y: 0,
+        z: Math.cos(player.yaw)
+      };
+    }
+
+    function resetGame() {
+      player.x = worldSize / 2;
+      player.y = worldSize / 2;
+      player.z = worldSize / 2;
+      player.yaw = 0;
+      player.vx = 0;
+      player.vy = 0;
+      player.vz = 0;
+      player.health = player.maxHealth;
+      player.cooldown = 0;
+      player.hitCooldown = 0;
+      score = 0;
+      missileLevel = 1;
+      spawnTimer = 0;
+      bullets.length = 0;
+      asteroids.length = 0;
+      particles.length = 0;
+      gameOver = false;
+      paused = false;
+      running = false;
+      pauseButton.textContent = 'PAUSE';
+      overlay.style.display = 'grid';
+      overlayTitle.textContent = 'Rays: Deep Cockpit';
+      overlayText.textContent = '一人称コックピット視点で隕石帯を突破してください。Iキーで推進を開始します。';
+      replayButton.style.display = 'none';
+      messageEl.textContent = 'J/Lで旋回、Iで前進、Kで後退、Oでバリア。慣性で機体は流れ続けます。';
+      makeField();
+      for (let i = 0; i < 12; i += 1) spawnAsteroid(true);
+      updateHud();
+    }
+
+    function makeField() {
+      stars.length = 0;
+      for (let i = 0; i < 1300; i += 1) {
+        stars.push({
+          x: rand(0, worldSize),
+          y: rand(0, worldSize),
+          z: rand(0, worldSize),
+          r: rand(0.8, 2.4),
+          tint: Math.random() < 0.74 ? '#ffffff' : (Math.random() < 0.5 ? '#a8ccff' : '#ffd9a8'),
+          glow: rand(0.34, 1)
+        });
+      }
+    }
+
+    function spawnAsteroid(anywhere = false) {
+      const f = forwardVector();
+      const side = rand(-1700, 1700);
+      const up = rand(-900, 900);
+      const ahead = anywhere ? rand(1000, 5000) : rand(2600, 5400);
+      const x = player.x + f.x * ahead + Math.cos(player.yaw) * side;
+      const z = player.z + f.z * ahead - Math.sin(player.yaw) * side;
+      const y = player.y + up;
+      const radius = rand(70, 190);
+      const targetAngle = Math.atan2(player.x - x, player.z - z) + rand(-0.38, 0.38);
+      asteroids.push({
+        x: clamp(x, 120, worldSize - 120),
+        y: clamp(y, 120, worldSize - 120),
+        z: clamp(z, 120, worldSize - 120),
+        vx: Math.sin(targetAngle) * rand(80, 180),
+        vy: rand(-38, 38),
+        vz: Math.cos(targetAngle) * rand(80, 180),
+        radius,
+        hp: Math.ceil(radius / 55) + Math.floor(score / 15),
+        spin: rand(-1.4, 1.4),
+        roll: rand(0, Math.PI * 2),
+        craters: Array.from({ length: 7 }, () => ({
+          x: rand(-0.45, 0.45),
+          y: rand(-0.45, 0.45),
+          r: rand(0.06, 0.16)
+        }))
+      });
+    }
+
+    function startGame() {
+      if (gameOver) return;
+      running = true;
+      overlay.style.display = 'none';
+    }
+
+    function setPaused(value) {
+      if (!running || gameOver) return;
+      paused = value;
+      pauseButton.textContent = paused ? 'RESUME' : 'PAUSE';
+      overlay.style.display = paused ? 'grid' : 'none';
+      overlayTitle.textContent = 'PAUSED';
+      overlayText.textContent = 'ポーズ中です。ボタンまたはPキーで再開します。';
+      replayButton.style.display = 'none';
+    }
+
+    function showMessage(text) {
+      messageEl.textContent = text;
+      messageTimer = 3.2;
+    }
+
+    function fire() {
+      if (!running || paused || gameOver || player.cooldown > 0) return;
+      const f = forwardVector();
+      const shots = Math.min(1 + Math.floor(missileLevel / 2), 5);
+      const spread = Math.min(0.025 + missileLevel * 0.006, 0.075);
+      for (let i = 0; i < shots; i += 1) {
+        const offset = shots === 1 ? 0 : (i - (shots - 1) / 2) * spread;
+        const yaw = player.yaw + offset;
+        bullets.push({
+          x: player.x + f.x * 90,
+          y: player.y - 12,
+          z: player.z + f.z * 90,
+          vx: Math.sin(yaw) * (1250 + missileLevel * 52) + player.vx,
+          vy: rand(-12, 12),
+          vz: Math.cos(yaw) * (1250 + missileLevel * 52) + player.vz,
+          life: 2.2,
+          damage: 1 + Math.floor(missileLevel / 3)
+        });
+      }
+      player.cooldown = Math.max(0.16, 0.42 - missileLevel * 0.015);
+    }
+
+    function explode(x, y, z, color, count) {
+      for (let i = 0; i < count; i += 1) {
+        particles.push({
+          x,
+          y,
+          z,
+          vx: rand(-260, 260),
+          vy: rand(-260, 260),
+          vz: rand(-260, 260),
+          life: rand(0.4, 1.1),
+          size: rand(2, 7),
+          color
+        });
+      }
+    }
+
+    function applyDamage(amount) {
+      if (player.hitCooldown > 0 || gameOver) return;
+      const shield = keys.has('KeyO');
+      const damage = shield ? amount * 0.5 : amount;
+      player.health = clamp(player.health - damage, 0, player.maxHealth);
+      player.hitCooldown = 1.0;
+      explode(player.x, player.y, player.z, shield ? '#72dcff' : '#ff6570', shield ? 26 : 44);
+      showMessage(shield ? 'バリアでダメージを50%軽減しました。' : '船体にダメージ。姿勢を変えて回避してください。');
+      if (player.health <= 0) {
+        gameOver = true;
+        running = false;
+        overlay.style.display = 'grid';
+        overlayTitle.textContent = 'SHIP DESTROYED';
+        overlayText.textContent = '船体が限界です。Replayで再挑戦できます。';
+        replayButton.style.display = 'inline-block';
+      }
+    }
+
+    function update(dt) {
+      if (keys.has('KeyJ')) player.yaw -= 1.85 * dt;
+      if (keys.has('KeyL')) player.yaw += 1.85 * dt;
+
+      const f = forwardVector();
+      if (keys.has('KeyI')) {
+        player.vx += f.x * 520 * dt;
+        player.vz += f.z * 520 * dt;
+      }
+      if (keys.has('KeyK')) {
+        player.vx -= f.x * 420 * dt;
+        player.vz -= f.z * 420 * dt;
+      }
+      if (keys.has('Space')) fire();
+
+      player.vx *= Math.pow(0.985, dt * 60);
+      player.vy *= Math.pow(0.985, dt * 60);
+      player.vz *= Math.pow(0.985, dt * 60);
+      const speed = Math.hypot(player.vx, player.vy, player.vz);
+      if (speed > 760) {
+        const scale = 760 / speed;
+        player.vx *= scale;
+        player.vy *= scale;
+        player.vz *= scale;
+      }
+
+      player.x = clamp(player.x + player.vx * dt, 80, worldSize - 80);
+      player.y = clamp(player.y + player.vy * dt, 80, worldSize - 80);
+      player.z = clamp(player.z + player.vz * dt, 80, worldSize - 80);
+      player.cooldown = Math.max(0, player.cooldown - dt);
+      player.hitCooldown = Math.max(0, player.hitCooldown - dt);
+
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnAsteroid();
+        spawnTimer = Math.max(0.35, 1.15 - score * 0.008);
+      }
+
+      for (let i = bullets.length - 1; i >= 0; i -= 1) {
+        const b = bullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.z += b.vz * dt;
+        b.life -= dt;
+        if (b.life <= 0 || b.x < 0 || b.x > worldSize || b.y < 0 || b.y > worldSize || b.z < 0 || b.z > worldSize) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      for (let i = asteroids.length - 1; i >= 0; i -= 1) {
+        const a = asteroids[i];
+        a.x += a.vx * dt;
+        a.y += a.vy * dt;
+        a.z += a.vz * dt;
+        a.roll += a.spin * dt;
+
+        if (Math.hypot(a.x - player.x, a.y - player.y, a.z - player.z) < a.radius + player.radius) {
+          applyDamage(18 + a.radius * 0.12);
+          a.vx *= -0.75;
+          a.vy *= -0.75;
+          a.vz *= -0.75;
+        }
+
+        for (let j = bullets.length - 1; j >= 0; j -= 1) {
+          const b = bullets[j];
+          if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < a.radius) {
+            a.hp -= b.damage;
+            bullets.splice(j, 1);
+            explode(b.x, b.y, b.z, '#ffe780', 10);
+            if (a.hp <= 0) {
+              score += 1;
+              player.health = clamp(player.health + 4, 0, player.maxHealth);
+              explode(a.x, a.y, a.z, '#ff9b62', 40);
+              asteroids.splice(i, 1);
+              if (Math.random() < 0.24) {
+                missileLevel += 1;
+                showMessage(`新しいミサイルを入手。ミサイル Lv.${missileLevel}`);
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i -= 1) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      if (messageTimer > 0) {
+        messageTimer -= dt;
+        if (messageTimer <= 0) {
+          messageEl.textContent = 'J/Lで旋回、Iで前進、Kで後退、Oでバリア。Spaceでミサイル発射。';
+        }
+      }
+
+      updateHud();
+    }
+
+    function updateHud() {
+      const rate = player.health / player.maxHealth;
+      healthFillEl.style.transform = `scaleX(${rate})`;
+      healthTextEl.textContent = `${Math.ceil(player.health)}%`;
+      scoreEl.textContent = `撃破: ${score}`;
+      missileEl.textContent = `ミサイル: Lv.${missileLevel}`;
+      speedEl.textContent = `速度: ${Math.round(Math.hypot(player.vx, player.vy, player.vz))}`;
+      barrierEl.textContent = `バリア: ${keys.has('KeyO') ? 'ON / 軽減50%' : 'OFF'}`;
+      sectorEl.textContent = `宙域: ${Math.floor(player.x / 1000)}, ${Math.floor(player.z / 1000)}`;
+    }
+
+    function project(obj) {
+      const dx = obj.x - player.x;
+      const dy = obj.y - player.y;
+      const dz = obj.z - player.z;
+      const sin = Math.sin(-player.yaw);
+      const cos = Math.cos(-player.yaw);
+      const rx = dx * cos - dz * sin;
+      const rz = dx * sin + dz * cos;
+      const ry = dy;
+      if (rz <= 24) return null;
+      const focal = Math.min(width, height) * 0.82;
+      return {
+        x: width / 2 + (rx / rz) * focal,
+        y: height / 2 + (ry / rz) * focal,
+        z: rz,
+        scale: focal / rz
+      };
+    }
+
+    function drawSpace() {
+      const bg = ctx.createRadialGradient(width * 0.58, height * 0.38, 0, width * 0.5, height * 0.48, Math.max(width, height));
+      bg.addColorStop(0, '#16243d');
+      bg.addColorStop(0.34, '#071124');
+      bg.addColorStop(1, '#010208');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      const nebula = ctx.createRadialGradient(width * 0.22, height * 0.7, 30, width * 0.22, height * 0.7, width * 0.7);
+      nebula.addColorStop(0, 'rgba(114, 45, 142, 0.22)');
+      nebula.addColorStop(0.45, 'rgba(38, 126, 144, 0.10)');
+      nebula.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = nebula;
+      ctx.fillRect(0, 0, width, height);
+
+      for (const s of stars) {
+        const p = project(s);
+        if (!p || p.x < -20 || p.x > width + 20 || p.y < -20 || p.y > height + 20) continue;
+        const size = clamp(s.r * p.scale * 12, 0.45, 3.8);
+        ctx.globalAlpha = clamp(s.glow * (1.4 - p.z / 9000), 0.18, 1);
+        ctx.fillStyle = s.tint;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawAsteroid(a) {
+      const p = project(a);
+      if (!p) return;
+      const r = clamp(a.radius * p.scale, 3, 240);
+      if (p.x < -r || p.x > width + r || p.y < -r || p.y > height + r) return;
+      const lit = ctx.createRadialGradient(p.x - r * 0.35, p.y - r * 0.38, 1, p.x, p.y, r * 1.2);
+      lit.addColorStop(0, '#d5cec4');
+      lit.addColorStop(0.34, '#80766c');
+      lit.addColorStop(1, '#231f1e');
+      ctx.fillStyle = lit;
+      ctx.strokeStyle = 'rgba(215, 205, 195, 0.55)';
+      ctx.lineWidth = Math.max(1, r * 0.025);
+      ctx.beginPath();
+      const points = 16;
+      for (let i = 0; i < points; i += 1) {
+        const angle = a.roll + (Math.PI * 2 * i) / points;
+        const wobble = 0.84 + Math.sin(i * 2.17 + a.roll) * 0.1 + Math.cos(i * 1.31) * 0.06;
+        const x = p.x + Math.cos(angle) * r * wobble;
+        const y = p.y + Math.sin(angle) * r * wobble;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      for (const c of a.craters) {
+        ctx.beginPath();
+        ctx.ellipse(p.x + c.x * r, p.y + c.y * r, c.r * r * 1.2, c.r * r * 0.8, a.roll, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBullet(b) {
+      const p = project(b);
+      if (!p) return;
+      const tail = project({ x: b.x - b.vx * 0.04, y: b.y - b.vy * 0.04, z: b.z - b.vz * 0.04 });
+      if (!tail) return;
+      ctx.strokeStyle = '#fff0a6';
+      ctx.lineWidth = clamp(8 * p.scale, 2, 8);
+      ctx.shadowColor = '#ffe780';
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(tail.x, tail.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawParticles() {
+      for (const p0 of particles) {
+        const p = project(p0);
+        if (!p) continue;
+        ctx.globalAlpha = clamp(p0.life, 0, 1);
+        ctx.fillStyle = p0.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, clamp(p0.size * p.scale * 8, 1, 8), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawCockpit() {
+      const bottom = height;
+      const panelTop = height * 0.72;
+      ctx.fillStyle = 'rgba(1, 5, 12, 0.88)';
+      ctx.beginPath();
+      ctx.moveTo(0, bottom);
+      ctx.lineTo(width * 0.18, panelTop);
+      ctx.quadraticCurveTo(width * 0.5, panelTop - 24, width * 0.82, panelTop);
+      ctx.lineTo(width, bottom);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(135, 218, 255, 0.34)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.18, panelTop);
+      ctx.quadraticCurveTo(width * 0.5, panelTop - 24, width * 0.82, panelTop);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(180, 218, 232, 0.2)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.2, height);
+      ctx.lineTo(width * 0.36, height * 0.73);
+      ctx.moveTo(width * 0.8, height);
+      ctx.lineTo(width * 0.64, height * 0.73);
+      ctx.stroke();
+
+      ctx.strokeStyle = keys.has('KeyO') ? 'rgba(116, 220, 255, 0.48)' : 'rgba(116, 220, 255, 0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.09, 0, Math.PI * 2);
+      ctx.moveTo(width / 2 - 22, height / 2);
+      ctx.lineTo(width / 2 + 22, height / 2);
+      ctx.moveTo(width / 2, height / 2 - 22);
+      ctx.lineTo(width / 2, height / 2 + 22);
+      ctx.stroke();
+
+      if (keys.has('KeyO') && running && !paused) {
+        const shield = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, Math.max(width, height) * 0.55);
+        shield.addColorStop(0, 'rgba(121, 221, 255, 0.02)');
+        shield.addColorStop(0.72, 'rgba(121, 221, 255, 0.08)');
+        shield.addColorStop(1, 'rgba(121, 221, 255, 0)');
+        ctx.fillStyle = shield;
+        ctx.fillRect(0, 0, width, height);
+      }
+    }
+
+    function drawMinimap() {
+      const mw = mapCanvas.width;
+      const mh = mapCanvas.height;
+      mapCtx.clearRect(0, 0, mw, mh);
+      mapCtx.fillStyle = 'rgba(1, 4, 10, 0.95)';
+      mapCtx.fillRect(0, 0, mw, mh);
+      mapCtx.strokeStyle = 'rgba(128, 218, 255, 0.18)';
+      mapCtx.strokeRect(0.5, 0.5, mw - 1, mh - 1);
+      const px = (player.x / worldSize) * mw;
+      const pz = (player.z / worldSize) * mh;
+      mapCtx.fillStyle = '#84dcff';
+      mapCtx.beginPath();
+      mapCtx.arc(px, pz, 4, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.strokeStyle = '#84dcff';
+      mapCtx.beginPath();
+      mapCtx.moveTo(px, pz);
+      mapCtx.lineTo(px + Math.sin(player.yaw) * 13, pz + Math.cos(player.yaw) * 13);
+      mapCtx.stroke();
+      mapCtx.fillStyle = '#ff9368';
+      for (const a of asteroids) {
+        const ax = (a.x / worldSize) * mw;
+        const az = (a.z / worldSize) * mh;
+        mapCtx.fillRect(ax - 1.5, az - 1.5, 3, 3);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      drawSpace();
+      const objects = asteroids.slice().sort((a, b) => {
+        const pa = project(a);
+        const pb = project(b);
+        return (pb ? pb.z : 0) - (pa ? pa.z : 0);
+      });
+      for (const a of objects) drawAsteroid(a);
+      for (const b of bullets) drawBullet(b);
+      drawParticles();
+      drawCockpit();
+      if (paused) {
+        ctx.fillStyle = 'rgba(1, 3, 8, 0.34)';
+        ctx.fillRect(0, 0, width, height);
+      }
+      drawMinimap();
+    }
+
+    function loop(time) {
+      const dt = Math.min((time - lastTime) / 1000 || 0, 0.04);
+      lastTime = time;
+      if (running && !paused) update(dt);
+      else updateHud();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('keydown', (event) => {
+      keys.add(event.code);
+      if (event.code === 'KeyI') startGame();
+      if (event.code === 'Space') fire();
+      if (event.code === 'KeyP') setPaused(!paused);
+      if (['KeyJ', 'KeyL', 'KeyI', 'KeyK', 'KeyO', 'KeyP', 'Space'].includes(event.code)) {
+        event.preventDefault();
+      }
+    });
+    window.addEventListener('keyup', (event) => keys.delete(event.code));
+    pauseButton.addEventListener('click', () => setPaused(!paused));
+    replayButton.addEventListener('click', resetGame);
+
+    resize();
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
