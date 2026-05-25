@@ -266,6 +266,7 @@
     const stars = [];
     const asteroids = [];
     const bullets = [];
+    const muzzleBursts = [];
     const particles = [];
     const player = {
       x: worldSize / 2,
@@ -292,6 +293,7 @@
     let missileLevel = 1;
     let spawnTimer = 0;
     let messageTimer = 0;
+    let fireSide = -1;
 
     function resize() {
       const ratio = window.devicePixelRatio || 1;
@@ -341,7 +343,9 @@
       score = 0;
       missileLevel = 1;
       spawnTimer = 0;
+      fireSide = -1;
       bullets.length = 0;
+      muzzleBursts.length = 0;
       asteroids.length = 0;
       particles.length = 0;
       gameOver = false;
@@ -440,6 +444,7 @@
       const shots = Math.min(1 + Math.floor(missileLevel / 2), 5);
       const spread = Math.min(0.025 + missileLevel * 0.006, 0.075);
       for (let i = 0; i < shots; i += 1) {
+        fireSide *= -1;
         const offset = shots === 1 ? 0 : (i - (shots - 1) / 2) * spread;
         const shot = aimVector(offset);
         bullets.push({
@@ -451,6 +456,13 @@
           vz: shot.z * (1250 + missileLevel * 52) + player.vz,
           life: 2.2,
           damage: 1 + Math.floor(missileLevel / 3)
+        });
+        muzzleBursts.push({
+          side: fireSide,
+          delay: i * 0.035,
+          age: 0,
+          life: 0.42,
+          yBias: rand(-0.045, 0.045)
         });
       }
       player.cooldown = Math.max(0.16, 0.42 - missileLevel * 0.015);
@@ -579,6 +591,12 @@
         p.z += p.vz * dt;
         p.life -= dt;
         if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      for (let i = muzzleBursts.length - 1; i >= 0; i -= 1) {
+        const m = muzzleBursts[i];
+        m.age += dt;
+        if (m.age - m.delay >= m.life) muzzleBursts.splice(i, 1);
       }
 
       if (messageTimer > 0) {
@@ -760,6 +778,46 @@
       ctx.globalAlpha = 1;
     }
 
+    function drawMuzzleBursts() {
+      for (const m of muzzleBursts) {
+        const t = (m.age - m.delay) / m.life;
+        if (t < 0 || t > 1) continue;
+
+        const eased = 1 - Math.pow(1 - t, 2.8);
+        const startX = m.side < 0 ? width * 0.08 : width * 0.92;
+        const startY = height * (0.68 + m.yBias);
+        const targetX = width / 2;
+        const targetY = height / 2;
+        const arc = Math.sin(t * Math.PI) * height * 0.055;
+        const x = startX + (targetX - startX) * eased;
+        const y = startY + (targetY - startY) * eased - arc;
+        const glow = clamp(1 - t * 0.78, 0.16, 1);
+        const size = clamp(18 - t * 9, 7, 18);
+
+        ctx.save();
+        ctx.globalAlpha = glow;
+        ctx.shadowColor = '#ffe780';
+        ctx.shadowBlur = 22;
+        const orb = ctx.createRadialGradient(x - size * 0.35, y - size * 0.35, 1, x, y, size * 1.3);
+        orb.addColorStop(0, '#fff8d2');
+        orb.addColorStop(0.46, '#ffe780');
+        orb.addColorStop(1, 'rgba(255, 165, 74, 0.12)');
+        ctx.fillStyle = orb;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = glow * 0.45;
+        ctx.strokeStyle = '#ffe780';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo((startX + targetX) / 2, Math.min(startY, targetY) - arc * 1.8, x, y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     function drawCockpit() {
       const bottom = height;
       const panelTop = height * 0.72;
@@ -906,6 +964,7 @@
       for (const b of bullets) drawBullet(b);
       drawParticles();
       drawCockpit();
+      drawMuzzleBursts();
       if (paused) {
         ctx.fillStyle = 'rgba(1, 3, 8, 0.34)';
         ctx.fillRect(0, 0, width, height);
