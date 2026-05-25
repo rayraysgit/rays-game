@@ -233,7 +233,7 @@
     <canvas id="minimap" width="164" height="164" aria-label="地図"></canvas>
   </div>
   <button class="pause-button" id="pauseButton" type="button">PAUSE</button>
-  <div class="message" id="message">J/Lで旋回、Iで前進、Kで後退、Oでバリア。慣性で機体は流れ続けます。</div>
+  <div class="message" id="message">L/Jで旋回、Iで照準方向へ推進、Kでミサイル、Oでバリア。慣性で機体は流れ続けます。</div>
   <div class="center" id="overlay">
     <div class="panel">
       <h1 id="overlayTitle">Rays: Deep Cockpit</h1>
@@ -318,6 +318,15 @@
       };
     }
 
+    function aimVector(yawOffset = 0) {
+      const yaw = player.yaw + yawOffset;
+      return {
+        x: Math.sin(yaw),
+        y: 0,
+        z: Math.cos(yaw)
+      };
+    }
+
     function resetGame() {
       player.x = worldSize / 2;
       player.y = worldSize / 2;
@@ -343,7 +352,7 @@
       overlayTitle.textContent = 'Rays: Deep Cockpit';
       overlayText.textContent = '一人称コックピット視点で隕石帯を突破してください。Iキーで推進を開始します。';
       replayButton.style.display = 'none';
-      messageEl.textContent = 'J/Lで旋回、Iで前進、Kで後退、Oでバリア。慣性で機体は流れ続けます。';
+      messageEl.textContent = 'L/Jで旋回、Iで照準方向へ推進、Kでミサイル、Oでバリア。慣性で機体は流れ続けます。';
       makeField();
       for (let i = 0; i < 12; i += 1) spawnAsteroid(true);
       updateHud();
@@ -364,7 +373,7 @@
     }
 
     function spawnAsteroid(anywhere = false) {
-      const f = forwardVector();
+      const f = aimVector();
       const side = rand(-1700, 1700);
       const up = rand(-900, 900);
       const ahead = anywhere ? rand(1000, 5000) : rand(2600, 5400);
@@ -388,6 +397,18 @@
           x: rand(-0.45, 0.45),
           y: rand(-0.45, 0.45),
           r: rand(0.06, 0.16)
+        })),
+        ridges: Array.from({ length: 18 }, () => ({
+          angle: rand(0, Math.PI * 2),
+          dist: rand(0.12, 0.86),
+          len: rand(0.08, 0.24),
+          shade: rand(0.12, 0.34)
+        })),
+        flecks: Array.from({ length: 34 }, () => ({
+          x: rand(-0.75, 0.75),
+          y: rand(-0.75, 0.75),
+          r: rand(0.008, 0.025),
+          light: rand(0.16, 0.62)
         }))
       });
     }
@@ -420,14 +441,14 @@
       const spread = Math.min(0.025 + missileLevel * 0.006, 0.075);
       for (let i = 0; i < shots; i += 1) {
         const offset = shots === 1 ? 0 : (i - (shots - 1) / 2) * spread;
-        const yaw = player.yaw + offset;
+        const shot = aimVector(offset);
         bullets.push({
           x: player.x + f.x * 90,
           y: player.y - 12,
           z: player.z + f.z * 90,
-          vx: Math.sin(yaw) * (1250 + missileLevel * 52) + player.vx,
-          vy: rand(-12, 12),
-          vz: Math.cos(yaw) * (1250 + missileLevel * 52) + player.vz,
+          vx: shot.x * (1250 + missileLevel * 52) + player.vx,
+          vy: shot.y * (1250 + missileLevel * 52) + player.vy,
+          vz: shot.z * (1250 + missileLevel * 52) + player.vz,
           life: 2.2,
           damage: 1 + Math.floor(missileLevel / 3)
         });
@@ -470,19 +491,17 @@
     }
 
     function update(dt) {
-      if (keys.has('KeyJ')) player.yaw -= 1.85 * dt;
-      if (keys.has('KeyL')) player.yaw += 1.85 * dt;
+      const turnRate = 1.08;
+      if (keys.has('KeyJ')) player.yaw += turnRate * dt;
+      if (keys.has('KeyL')) player.yaw -= turnRate * dt;
 
-      const f = forwardVector();
+      const f = aimVector();
       if (keys.has('KeyI')) {
-        player.vx += f.x * 520 * dt;
-        player.vz += f.z * 520 * dt;
+        player.vx += f.x * 360 * dt;
+        player.vy += f.y * 360 * dt;
+        player.vz += f.z * 360 * dt;
       }
-      if (keys.has('KeyK')) {
-        player.vx -= f.x * 420 * dt;
-        player.vz -= f.z * 420 * dt;
-      }
-      if (keys.has('Space')) fire();
+      if (keys.has('KeyK')) fire();
 
       player.vx *= Math.pow(0.985, dt * 60);
       player.vy *= Math.pow(0.985, dt * 60);
@@ -565,7 +584,7 @@
       if (messageTimer > 0) {
         messageTimer -= dt;
         if (messageTimer <= 0) {
-          messageEl.textContent = 'J/Lで旋回、Iで前進、Kで後退、Oでバリア。Spaceでミサイル発射。';
+          messageEl.textContent = 'L/Jで旋回、Iで照準方向へ推進、Kでミサイル、Oでバリア。';
         }
       }
 
@@ -656,12 +675,60 @@
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-      for (const c of a.craters) {
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i < points; i += 1) {
+        const angle = a.roll + (Math.PI * 2 * i) / points;
+        const wobble = 0.84 + Math.sin(i * 2.17 + a.roll) * 0.1 + Math.cos(i * 1.31) * 0.06;
+        const x = p.x + Math.cos(angle) * r * wobble;
+        const y = p.y + Math.sin(angle) * r * wobble;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.clip();
+
+      for (const ridge of a.ridges) {
+        const angle = ridge.angle + a.roll * 0.55;
+        const cx = p.x + Math.cos(angle) * ridge.dist * r;
+        const cy = p.y + Math.sin(angle) * ridge.dist * r;
+        ctx.strokeStyle = `rgba(0, 0, 0, ${ridge.shade})`;
+        ctx.lineWidth = Math.max(1, r * 0.012);
         ctx.beginPath();
-        ctx.ellipse(p.x + c.x * r, p.y + c.y * r, c.r * r * 1.2, c.r * r * 0.8, a.roll, 0, Math.PI * 2);
+        ctx.moveTo(cx - Math.sin(angle) * ridge.len * r, cy + Math.cos(angle) * ridge.len * r);
+        ctx.lineTo(cx + Math.sin(angle) * ridge.len * r, cy - Math.cos(angle) * ridge.len * r);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(238, 226, 207, 0.12)';
+        ctx.beginPath();
+        ctx.moveTo(cx - Math.sin(angle) * ridge.len * r, cy + Math.cos(angle) * ridge.len * r - 1);
+        ctx.lineTo(cx + Math.sin(angle) * ridge.len * r, cy - Math.cos(angle) * ridge.len * r - 1);
+        ctx.stroke();
+      }
+
+      for (const f of a.flecks) {
+        if (f.x * f.x + f.y * f.y > 0.72) continue;
+        ctx.fillStyle = `rgba(238, 232, 218, ${f.light})`;
+        ctx.beginPath();
+        ctx.arc(p.x + f.x * r, p.y + f.y * r, Math.max(0.7, f.r * r), 0, Math.PI * 2);
         ctx.fill();
       }
+
+      for (const c of a.craters) {
+        const cx = p.x + c.x * r;
+        const cy = p.y + c.y * r;
+        const crater = ctx.createRadialGradient(cx - c.r * r * 0.28, cy - c.r * r * 0.32, 1, cx, cy, c.r * r * 1.5);
+        crater.addColorStop(0, 'rgba(225, 215, 196, 0.18)');
+        crater.addColorStop(0.42, 'rgba(18, 16, 15, 0.46)');
+        crater.addColorStop(1, 'rgba(0, 0, 0, 0.06)');
+        ctx.fillStyle = crater;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, c.r * r * 1.25, c.r * r * 0.82, a.roll, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(230, 218, 196, 0.16)';
+        ctx.lineWidth = Math.max(1, r * 0.008);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     function drawBullet(b) {
@@ -720,6 +787,65 @@
       ctx.moveTo(width * 0.8, height);
       ctx.lineTo(width * 0.64, height * 0.73);
       ctx.stroke();
+
+      const seatGrad = ctx.createLinearGradient(0, height * 0.78, 0, height);
+      seatGrad.addColorStop(0, 'rgba(23, 29, 38, 0.92)');
+      seatGrad.addColorStop(1, 'rgba(4, 6, 10, 0.98)');
+      ctx.fillStyle = seatGrad;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.39, height);
+      ctx.lineTo(width * 0.43, height * 0.82);
+      ctx.quadraticCurveTo(width * 0.5, height * 0.78, width * 0.57, height * 0.82);
+      ctx.lineTo(width * 0.61, height);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(210, 226, 238, 0.18)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const drawConsole = (x, mirror) => {
+        const w = width * 0.22;
+        const h = height * 0.19;
+        ctx.fillStyle = 'rgba(10, 16, 24, 0.94)';
+        ctx.beginPath();
+        ctx.moveTo(x, height);
+        ctx.lineTo(x + mirror * w * 0.18, height * 0.8);
+        ctx.lineTo(x + mirror * w, height * 0.84);
+        ctx.lineTo(x + mirror * w * 0.72, height);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(150, 176, 190, 0.24)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        for (let i = 0; i < 8; i += 1) {
+          const bx = x + mirror * (w * (0.23 + (i % 4) * 0.13));
+          const by = height * (0.86 + Math.floor(i / 4) * 0.045);
+          ctx.fillStyle = i === 2 && keys.has('KeyK') ? '#ffe780' : (i === 5 && keys.has('KeyO') ? '#72dcff' : '#263745');
+          ctx.beginPath();
+          ctx.roundRect(bx - 7, by - 5, 14, 10, 3);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(230, 242, 255, 0.18)';
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = 'rgba(117, 222, 255, 0.36)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x + mirror * w * 0.56, height * 0.82, Math.max(15, width * 0.018), 0, Math.PI * 2);
+        ctx.moveTo(x + mirror * w * 0.56, height * 0.82);
+        ctx.lineTo(x + mirror * w * 0.56 + mirror * Math.sin(player.yaw) * 18, height * 0.82 - Math.cos(player.yaw) * 18);
+        ctx.stroke();
+      };
+      drawConsole(width * 0.08, 1);
+      drawConsole(width * 0.92, -1);
+
+      const glass = ctx.createLinearGradient(0, 0, 0, height);
+      glass.addColorStop(0, 'rgba(178, 226, 255, 0.08)');
+      glass.addColorStop(0.48, 'rgba(178, 226, 255, 0.015)');
+      glass.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glass;
+      ctx.fillRect(0, 0, width, height);
 
       ctx.strokeStyle = keys.has('KeyO') ? 'rgba(116, 220, 255, 0.48)' : 'rgba(116, 220, 255, 0.22)';
       ctx.lineWidth = 1.5;
@@ -800,9 +926,9 @@
     window.addEventListener('keydown', (event) => {
       keys.add(event.code);
       if (event.code === 'KeyI') startGame();
-      if (event.code === 'Space') fire();
+      if (event.code === 'KeyK') fire();
       if (event.code === 'KeyP') setPaused(!paused);
-      if (['KeyJ', 'KeyL', 'KeyI', 'KeyK', 'KeyO', 'KeyP', 'Space'].includes(event.code)) {
+      if (['KeyJ', 'KeyL', 'KeyI', 'KeyK', 'KeyO', 'KeyP'].includes(event.code)) {
         event.preventDefault();
       }
     });
